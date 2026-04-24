@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 )
 
-// Type identifies the notification backend.
+// Type represents the kind of notifier backend.
 type Type string
 
 const (
@@ -15,15 +14,16 @@ const (
 	TypeCommand Type = "command"
 	TypeLog     Type = "log"
 	TypeWebhook Type = "webhook"
+	TypeEmail   Type = "email"
 )
 
-// Config holds notifier configuration.
+// Config holds the top-level notifier configuration.
 type Config struct {
-	Type           Type          `json:"type"`
-	Command        string        `json:"command,omitempty"`
-	LogFile        string        `json:"log_file,omitempty"`
-	WebhookURL     string        `json:"webhook_url,omitempty"`
-	WebhookTimeout time.Duration `json:"webhook_timeout_ms,omitempty"`
+	Type        Type        `json:"type"`
+	CommandPath string      `json:"command,omitempty"`
+	LogFile     string      `json:"log_file,omitempty"`
+	WebhookURL  string      `json:"webhook_url,omitempty"`
+	Email       EmailConfig `json:"email,omitempty"`
 }
 
 // Defaults fills in zero-value fields with sensible defaults.
@@ -31,41 +31,40 @@ func (c *Config) Defaults() {
 	if c.Type == "" {
 		c.Type = TypeStdout
 	}
-	if c.Type == TypeWebhook && c.WebhookTimeout == 0 {
-		c.WebhookTimeout = 10 * time.Second
-	}
 }
 
-// Validate returns an error if the config is invalid for its type.
+// Validate returns an error if the configuration is incomplete.
 func (c *Config) Validate() error {
 	switch c.Type {
 	case TypeStdout:
-		return nil
+		// no extra fields required
 	case TypeCommand:
-		if c.Command == "" {
-			return fmt.Errorf("notifier: command type requires 'command' field")
+		if c.CommandPath == "" {
+			return fmt.Errorf("notifier: command path is required for type %q", c.Type)
 		}
-		return nil
 	case TypeLog:
 		if c.LogFile == "" {
-			return fmt.Errorf("notifier: log type requires 'log_file' field")
+			return fmt.Errorf("notifier: log_file is required for type %q", c.Type)
 		}
-		return nil
 	case TypeWebhook:
 		if c.WebhookURL == "" {
-			return fmt.Errorf("notifier: webhook type requires 'webhook_url' field")
+			return fmt.Errorf("notifier: webhook_url is required for type %q", c.Type)
 		}
-		return nil
+	case TypeEmail:
+		if c.Email.SMTPHost == "" || c.Email.From == "" || len(c.Email.To) == 0 {
+			return fmt.Errorf("notifier: email config is incomplete for type %q", c.Type)
+		}
 	default:
 		return fmt.Errorf("notifier: unknown type %q", c.Type)
 	}
+	return nil
 }
 
-// LoadConfig reads a Config from a JSON file.
+// LoadConfig reads a Config from a JSON file at path.
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("notifier: load config: %w", err)
+		return nil, fmt.Errorf("notifier: read config: %w", err)
 	}
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
@@ -75,11 +74,11 @@ func LoadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// SaveConfig writes a Config to a JSON file.
+// SaveConfig writes cfg to a JSON file at path.
 func SaveConfig(path string, cfg *Config) error {
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		return fmt.Errorf("notifier: save config: %w", err)
+		return fmt.Errorf("notifier: marshal config: %w", err)
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0o644)
 }
