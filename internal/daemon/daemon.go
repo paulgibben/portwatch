@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -22,7 +23,7 @@ type Daemon struct {
 func New(configPath string) (*Daemon, error) {
 	cfg, err := rules.LoadConfig(configPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading config from %q: %w", configPath, err)
 	}
 
 	w := watcher.New(cfg)
@@ -46,7 +47,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.logger.Println("starting portwatch daemon")
 
 	if err := d.watcher.Start(ctx); err != nil {
-		return err
+		return fmt.Errorf("starting watcher: %w", err)
 	}
 
 	select {
