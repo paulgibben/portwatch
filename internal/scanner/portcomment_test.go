@@ -53,6 +53,15 @@ func TestPortCommentStore_Delete(t *testing.T) {
 	}
 }
 
+func TestPortCommentStore_Delete_NonExistent(t *testing.T) {
+	s := makeCommentStore()
+	// Deleting a key that doesn't exist should not panic or alter other entries.
+	s.Delete(9999, "tcp")
+	if len(s.All()) != 2 {
+		t.Errorf("expected 2 comments after no-op delete, got %d", len(s.All()))
+	}
+}
+
 func TestPortCommentStore_All(t *testing.T) {
 	s := makeCommentStore()
 	all := s.All()
